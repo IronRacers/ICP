@@ -7,7 +7,7 @@ st.set_page_config(
     layout="wide"    # opcional
 )
 
-st.title("Leitor de Dados do Módulo ICP")
+st.title("Leitor de Dados do Módulo ICP judah")
 
 arquivo = st.file_uploader("Envie o arquivo CSV", type=["csv"])
 
