@@ -5,6 +5,7 @@ import pydeck as pdk
 import altair as alt  
 
 
+
 # Raio da Terra em metros
 EARTH_RADIUS_METERS = 6371000
 
