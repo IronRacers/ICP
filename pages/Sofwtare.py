@@ -13,15 +13,29 @@ def load_data(uploaded_file) -> pd.DataFrame:
     """Carrega os dados do log de telemetria."""
     try:
         df = pd.read_csv(uploaded_file)
+        
+        # Se as colunas vieram do seu código do Arduino, nós as renomeamos 
+        # para que o resto do script continue funcionando sem alterações.
+        col_map = {
+            'GPS_Lat': 'lat',
+            'GPS_Lon': 'lng',
+            'GPS_Vel(km/h)': 'vel'
+        }
+        df = df.rename(columns=col_map)
+        
         required_cols = ['lat', 'lng', 'vel']
         if not all(col in df.columns for col in required_cols):
-            st.error(f"O arquivo CSV deve conter as colunas: {required_cols}")
+            st.error(f"O arquivo CSV deve conter as colunas: {required_cols} (ou as equivalentes do Arduino)")
             return pd.DataFrame()
+            
+        # Remove as linhas onde não havia sinal de GPS e o Arduino salvou (0,0,0,0)
+        df = df[(df['lat'] != 0.0) | (df['lng'] != 0.0)].copy()
+        df.reset_index(drop=True, inplace=True)
+        
         return df
     except Exception as e:
         st.error(f"Erro ao ler o arquivo: {e}")
         return pd.DataFrame()
-
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calcula a distância em metros entre dois pontos (Haversine)."""
     lat1_rad, lon1_rad, lat2_rad, lon2_rad = map(np.radians, [lat1, lon1, lat2, lon2])
@@ -82,7 +96,12 @@ def process_telemetry_data(df: pd.DataFrame) -> pd.DataFrame:
     return df_processed
 
 
+import os
 st.title("Analisador de Log de Telemetria")
+
+if os.path.exists("logo.png"):
+    st.sidebar.image("logo.png", width="stretch")
+st.sidebar.markdown("<h2 style='text-align: center; color: white;'>BioTrack FSAE</h2>", unsafe_allow_html=True)
 
 uploaded_file = st.file_uploader("Escolha um arquivo de log (.csv)", type="csv")
 
@@ -100,6 +119,46 @@ if uploaded_file is not None:
             
             if not df_processed.empty:
                 
+                st.subheader("Métricas em Destaque")
+                
+                max_vel = df_processed['vel'].max()
+                max_accel = df_processed['acceleration_mpss'].max()
+                total_dist = df_processed['delta_distance_m'].sum()
+                
+                # Lógica para contar voltas
+                start_lat = df_processed.iloc[0]['lat']
+                start_lng = df_processed.iloc[0]['lng']
+                
+                estado = "AT_START"
+                lap_start_time = 0.0
+                voltas = []
+                
+                for idx, row in df_processed.iterrows():
+                    dist = calculate_haversine_distance(start_lat, start_lng, row['lat'], row['lng'])
+                    tempo_atual = row['time_s']
+                    
+                    if estado == "AT_START":
+                        if dist > 15: # Carro se afastou mais de 15 metros da largada
+                            estado = "AWAY"
+                    elif estado == "AWAY":
+                        if dist < 5: # Carro retornou para um raio de 5 metros da largada
+                            tempo_volta = tempo_atual - lap_start_time
+                            voltas.append(tempo_volta)
+                            lap_start_time = tempo_atual
+                            estado = "AT_START"
+                
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Vel. Máxima", f"{max_vel:.1f} km/h")
+                col2.metric("Acel. Máxima", f"{max_accel:.1f} m/s²")
+                col3.metric("Dist. Total", f"{total_dist:.1f} m")
+                col4.metric("Total de Voltas", f"{len(voltas)}")
+                
+                if voltas:
+                    st.write("**Tempo de cada volta:**")
+                    for i, t in enumerate(voltas):
+                        st.write(f"- **Volta {i+1}:** {t:.1f} segundos")
+                
+                st.divider()
                 
                 st.subheader("Gráfico de Velocidade vs. Tempo")
                 

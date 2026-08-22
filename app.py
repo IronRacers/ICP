@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 
@@ -6,6 +7,10 @@ st.set_page_config(
     page_icon="📊",  # opcional
     layout="wide"    # opcional
 )
+
+if os.path.exists("logo.png"):
+    st.sidebar.image("logo.png", width="stretch")
+st.sidebar.markdown("<h2 style='text-align: center; color: white;'>BioTrack Iron - FSAE</h2>", unsafe_allow_html=True)
 
 st.title("Leitor de Dados do Módulo ICP")
 
